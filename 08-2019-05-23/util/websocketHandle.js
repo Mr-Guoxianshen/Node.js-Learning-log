@@ -16,7 +16,7 @@ const createMessage = function(type, user, data) {
         dats: data
     })
 }
-const onConnection = function() {
+const onConnection = function(this) {
     console.log(`[Websocket] connected.`);
     let user = this.user;
     let msg = createMessage('join', user, `${user.name} joined.`);
@@ -26,14 +26,15 @@ const onConnection = function() {
     let users = Array.from(this.wss.clients).map((client) => client.user);
     this.send(createMessage('list', user, users));
 }
-const onMessage = function(message) {
+const onMessage = function(this, message) {
     console.log(message);
     if (message && message.trim()) {
         let msg = createMessage('chat', this.user, message.trim());
         this.wss.broadcast(msg);
     }
 }
-const onClose = function() {
+const onClose = function(this) {
+    console.log('关闭WebSocket连接!');
     let user = this.user;
     let msg = createMessage('left', user, `${user.name} is left.`);
     this.wss.broadcast(msg);
@@ -41,16 +42,18 @@ const onClose = function() {
 const onError = function(err) {
     
 }
-function createWebSocketServer(server) {
+const get_cookies = function(request) {
+    var cookies = {};
+    request.headers && request.headers.cookie.split(';').forEach(function(cookie) {
+      var parts = cookie.match(/(.*?)=(.*)$/)
+      cookies[ parts[1].trim() ] = (parts[2] || '').trim();
+    });
+    return cookies;
+};
+const createWebSocketServer = function(server, onConnection, onMessage, onClose, onError) {
     let wss = new WebSocketServer({
         server: server
     })
-    // TODO: 待确认
-    // wss.broadcast = function(data) {
-    //     wss.clients.forEach(function each(client) {
-    //         client.send(data);
-    //     });
-    // }
     wss.broadcast = function broadcast(data) {
         wss.clients.forEach(function each(client) {
             client.send(data);
@@ -72,6 +75,7 @@ function createWebSocketServer(server) {
         // check user
         // let user = parseUser(ws.upgradeReq);
         let user = parseUser(req.headers.cookie.split('=')[1] || '');
+        // console.log(11111, get_cookies(req)['name']);
         if (!user) ws.close(4001, 'Invalid USER');
         ws.user = user;
         ws.wss = wss;
@@ -81,7 +85,11 @@ function createWebSocketServer(server) {
     return wss;
 }
 
-module.exports = createWebSocketServer;
+module.exports = {
+    onConnection, 
+    onMessage, 
+    onClose
+};
 
 
 
